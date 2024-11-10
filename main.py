@@ -1,5 +1,3 @@
-from pyswip import Prolog
-from pyswip import Atom
 import subprocess
 from pydantic import BaseModel
 from typing import List
@@ -7,19 +5,10 @@ from openai import OpenAI
 import datetime
 import json
 from typing import Dict
-
-# Create a Prolog instance
-prolog = Prolog()
-
-# Add facts and rules
-# prolog.assertz('Person(ellie)')
-# prolog.assertz(
-#     "cannot_be_at_two_locations_time(was_at(X,Y,Z),was_at(X,W,Q)) :- was_at(X, Y, Z),was_at(X, W, Q),Y \\= W.Z \\= Q."
-# )
-
-# # Query Prolog
-# result = list(prolog.query("parent(john, X)"))
-# print(result)  # [{'X': 'mary'}]
+import random
+import threading
+import os
+lock = threading.Lock()
 
 
 # Instructions:
@@ -33,8 +22,13 @@ ellie_syst_inst="Someone has killed jhonathan. It was you but you are trying to 
 
 
 
-Researchathon_api_key='\'
-
+Researchathon_api_key=''
+id=0
+def make_id():
+  with lock:
+    global id
+    id+=1
+  return id
 def call_completions_string(prompt,system_instructions="You are a helpful assistant.",model="gpt-4o-mini"):
   openai.api_key = Researchathon_api_key
   response = openai.chat.completions.create(
@@ -124,13 +118,20 @@ class Argument_(BaseModel):
 
 # class Arguments(BaseModel):
 #     arguments: list(Argument)
-def make_argument(statement="humans cause climate change"):
+def make_argument(statement="humans cause climate change",recursive_level=0,parent_UUID=0):
   Argument_maker_sys_inst= "Take this proposition and create a supporting argument for it where the proposition given is the conclusion. Supporting rules connect supporting statements (premises) to the conclusion. Please provide you response according to the structure provided."
   response=call_completions_structured (system_instructions=Argument_maker_sys_inst,prompt=statement,pylance_structure=Argument_)
   if isinstance(response, str):
     dict=json.loads(response)
   else:
     dict=response
+  i=0
+  for supporting_statement in dict["supporting_statements"]:
+    supporting_statement['index']=i
+    i+=1
+    supporting_statement['level']=recursive_level+1
+    supporting_statement["UUID"]=make_id()
+    supporting_statement["parent_UUID"]=parent_UUID
   # for statement in dict["supporting_statements"]:
   #   if (statement["truth"]=="true" or statement["truth"]=="Truth"):
   #     statement["truth"]=True
@@ -150,47 +151,66 @@ def evaluate(Statement,Arguments):
 
 
 Arguments=[]
+def add_argument(Argument):
+  with lock:
+    Arguments.append(Argument)
+  return
 
-
-def spagetti(statement,recursive_level):
+def spagetti(statement,recursive_level,parent_UUID=0):
   print(str(recursive_level))
-  if recursive_level==5:
-    print("reached recursive level 5")
+  if recursive_level==2:
+    print(f"reached recursive level {recursive_level}")
     return
     
-  Argument=make_argument(statement)
-  Arguments.append(Argument)
-  print("made argument for supporting statement at recursive level:" + str(recursive_level))
+  Argument=make_argument(statement,recursive_level,parent_UUID)
+  add_argument(Argument)
   
+  print("made argument for supporting statement at recursive level:" + str(recursive_level))
+
   for supporting_statement in Argument["supporting_statements"]:
-    spagetti(supporting_statement["statement"],recursive_level+1)
+    spagetti(supporting_statement["statement"],recursive_level+1,supporting_statement["UUID"])
   return
 
 starting_statement="humans cause climate change"
-Argument=make_argument(starting_statement)
-Arguments.append(Argument)
-print (Argument)
-print(type(Argument))
-print(type(Argument["supporting_statements"]))
-for supporting_statement in Argument["supporting_statements"]:
-  spagetti(supporting_statement["statement"],0)
-
-try:  
-  with open('arguments.json', 'w') as f:
-    json.dump(Arguments, f)
-except Exception as e:
-  print(Arguments)
-# while i< 10:
-#   for supporting_statement in Argument["supporting_statements"]:
-#     Arguments.append(make_argument(statement=supporting_statement.statement))
-  
-import threading
+Argument=make_argument(starting_statement,0,0)
+add_argument(Argument)
 threads=[]
+start=datetime.datetime.now()
 for supporting_statement in Argument["supporting_statements"]:
   threads.append(threading.Thread(target=spagetti, args=(supporting_statement["statement"],0)))
 for thread in threads:
   thread.start()
 for thread in threads:
-  thread.join()  
-thread1.start()
-thread.join()
+  thread.join()
+print(f"Time taken for completion with threading: {datetime.datetime.now()-start}")
+# for supporting_statement in Argument["supporting_statements"]:
+#   spagetti(supporting_statement["statement"],0,supporting_statement["UUID"])
+filename = f"arguments_{random.randint(0,99999)}.json"
+try:  
+  with open(filename, 'w') as f:
+    json.dump(Arguments, f)
+  print(f"saved to {filename}")
+except Exception as e:
+  print("Error in writing to file",e)
+  print(Arguments)
+
+statement_list=[]
+statement_list.append({"statement":starting_statement,"index":0,"level":0,"UUID":0,"parent_UUID":0})
+for argument in Arguments:
+  for supporting_statement in argument["supporting_statements"]:
+    clean_statement={"statement":supporting_statement["statement"],"index":supporting_statement["index"],"level":supporting_statement["level"],"UUID":supporting_statement["UUID"],"parent_UUID":supporting_statement["parent_UUID"]}
+    statement_list.append(clean_statement)
+filename = f"statements_{random.randint(0,99999)}.json"
+with open(filename, 'w') as f:
+  json.dump(statement_list, f)
+print(f"saved to {filename}")
+# import threading
+# threads=[]
+# for supporting_statement in Argument["supporting_statements"]:
+#   threads.append(threading.Thread(target=spagetti, args=(supporting_statement["statement"],0)))
+# for thread in threads:
+#   thread.start()
+# for thread in threads:
+#   thread.join()  
+# thread1.start()
+# thread.join()
