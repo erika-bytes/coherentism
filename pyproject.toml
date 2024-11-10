@@ -1,0 +1,12 @@
+[project]
+name = "repl-nix-experimentingwithprolog"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.11"
+dependencies = [
+    "matplotlib>=3.9.2",
+    "networkx>=3.4.2",
+    "openai>=1.54.3",
+    "pydantic>=2.9.2",
+    "pyswip>=0.3.2",
+]

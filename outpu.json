@@ -1,0 +1,66 @@
+{
+  "supporting_statements": [
+    {
+      "statement": "Human activities, such as burning fossil fuels and deforestation, increase the concentration of greenhouse gases in the atmosphere.",
+      "truth": true
+    },
+    {
+      "statement": "Scientific studies show a correlation between rising levels of carbon dioxide and global temperatures.",
+      "truth": true
+    },
+    {
+      "statement": "The overwhelming majority of climate scientists agree that human activity is the primary driver of climate change.",
+      "truth": true
+    },
+    {
+      "statement": "Natural processes alone cannot account for the rapid changes in climate observed over the past century.",
+      "truth": true
+    }
+  ],
+  "supporting_rules": [
+    {
+      "supporting_statement": {
+        "statement": "Human activities, such as burning fossil fuels and deforestation, increase the concentration of greenhouse gases in the atmosphere.",
+        "truth": true
+      },
+      "supported_statement": {
+        "statement": "Humans cause climate change",
+        "truth": true
+      }
+    },
+    {
+      "supporting_statement": {
+        "statement": "Scientific studies show a correlation between rising levels of carbon dioxide and global temperatures.",
+        "truth": true
+      },
+      "supported_statement": {
+        "statement": "Humans cause climate change",
+        "truth": true
+      }
+    },
+    {
+      "supporting_statement": {
+        "statement": "The overwhelming majority of climate scientists agree that human activity is the primary driver of climate change.",
+        "truth": true
+      },
+      "supported_statement": {
+        "statement": "Humans cause climate change",
+        "truth": true
+      }
+    },
+    {
+      "supporting_statement": {
+        "statement": "Natural processes alone cannot account for the rapid changes in climate observed over the past century.",
+        "truth": true
+      },
+      "supported_statement": {
+        "statement": "Humans cause climate change",
+        "truth": true
+      }
+    }
+  ],
+  "conclusion": {
+    "statement": "Humans cause climate change",
+    "truth": true
+  }
+}

@@ -1,0 +1,30 @@
+[={
+  "nodes": [
+    { "id": "1", "name": "John", "level": 1 },
+    { "id": "2", "name": "Mary", "level": 1 },
+    { "id": "3", "name": "Alice", "level": 2 },
+    { "id": "4", "name": "Bob", "level": 2 },
+    { "id": "5", "name": "Charlie", "level": 3 },
+    { "id": "6", "name": "Diana", "level": 3 },
+    { "id": "7", "name": "Eve", "level": 4 },
+    { "id": "8", "name": "Frank", "level": 4 },
+    { "id": "9", "name": "Grace", "level": 5 },
+    { "id": "10", "name": "Hank", "level": 5 }
+  ],
+  "links": [
+    { "source": "1", "target": "3", "relationship": "parent" },
+    { "source": "2", "target": "3", "relationship": "parent" },
+    { "source": "1", "target": "4", "relationship": "parent" },
+    { "source": "2", "target": "4", "relationship": "parent" },
+    { "source": "3", "target": "5", "relationship": "parent" },
+    { "source": "3", "target": "6", "relationship": "parent" },
+    { "source": "4", "target": "5", "relationship": "parent" },
+    { "source": "4", "target": "6", "relationship": "parent" },
+    { "source": "5", "target": "7", "relationship": "parent" },
+    { "source": "5", "target": "8", "relationship": "parent" },
+    { "source": "6", "target": "7", "relationship": "parent" },
+    { "source": "6", "target": "8", "relationship": "parent" },
+    { "source": "7", "target": "9", "relationship": "parent" },
+    { "source": "8", "target": "10", "relationship": "parent" }
+  ]
+}
