@@ -4,22 +4,27 @@ with open('arguments.json', 'r') as file:
     data = json.load(file)
 
 G = nx.DiGraph()
-for entry in data:
-    conclusion = entry["conclusion"]["statement"]
-    G.add_node(conclusion, truth=entry["conclusion"]["truth"])
+# for entry in data:
+#     conclusion = entry["conclusion"]["statement"]
+#     G.add_node(conclusion, truth=entry["conclusion"]["truth"])
     
     # Add supporting statements as nodes
+#add origin node
+
+origin_node = G.add_node("00", truth=True)
+
+for entry in data:
     for stmt in entry["supporting_statements"]:
-        statement_text = stmt["statement"]
-        G.add_node(statement_text, truth=stmt["truth"])
-        
+        statement_text = stmt["statement"]["level"] + "" + stmt["statement"]["index"]
+        current_node = G.add_node(statement_text, truth=stmt["truth"])
+
     # Add edges based on supporting rules
-    for rule in entry["supporting_rules"]:
-        supporting_statement = rule["supporting_statement"]["statement"]
-        supported_statement = rule["supported_statement"]["statement"]
+    # for rule in entry["supporting_rules"]:
+    #     supporting_statement = rule["supporting_statement"]["statement"]
+    #     supported_statement = rule["supported_statement"]["statement"]
         
         # Create directed edges from supporting statements to the conclusion or other statements
-        G.add_edge(supporting_statement, supported_statement)
+       # G.add_edge(supporting_statement, supported_statement)
 
 # Export the graph to a GEXF file
 nx.write_gexf(G, "statements_network.gexf")
