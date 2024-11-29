@@ -1,8 +1,4 @@
-# create_supporting_statement(1, "statement that super supports human-caused climate changed.")
-
-# driver.close()
-
-########### Code to make our arguments network :) 
+# Import statements
 
 import subprocess
 import pydantic
@@ -14,22 +10,12 @@ from typing import Dict
 import random
 import threading
 import os
+import neo4j
 #lock = threading.Lock()
 
 Researchathon_api_key='/'
 
-# OPENAI SETUP STUFF
-
-def call_completions_string(prompt,system_instructions="You are a helpful assistant.",model="gpt-4o-mini"):
-  openai.api_key = Researchathon_api_key
-  response = openai.chat.completions.create(
-    model=model,
-    messages=[
-        {"role": "system", "content": system_instructions},
-        {"role": "user", "content": prompt}
-    ]
-  )
-  return response.choices[0].message.content
+# Setup OpenAI stuff
 
 client = openai.OpenAI(api_key=Researchathon_api_key)
 
@@ -57,7 +43,7 @@ def call_completions_structured(prompt,system_instructions="You are a helpful as
   
   return response_content
 
-######## LOGICCCCCC woooo
+# Argument structure and make argument fxn from OG script
 
 class Statement(pydantic.BaseModel):
   statement: str
@@ -81,9 +67,7 @@ def make_argument(statement="humans cause climate change"):
   return dict 
 
 
-######## simple node creation flow with neo4j python package 
-
-import neo4j
+# Set up neo4j driver stuff
 
 uri = "bolt://localhost:7687"
 username = "neo4j"
@@ -91,9 +75,11 @@ password = "m@k3!tf)k!ngCon$isten-t"
 
 driver = neo4j.GraphDatabase.driver(uri, auth=(username, password))
 
+# Create nodes, edges in DB. Node creation uses merge to avoid node duplication (including in successive recursive runs lol), and edge creation matches on node text
+
 def create_supporting_statement( _text):
     with driver.session() as session:
-        q1 = "CREATE (s:Statement) SET s.text = $_text"
+        q1 = "MERGE (s:Statement {text: $_text})"
         nodes = session.run(q1, _text=_text)
 
 def add_edge(_supporting_statement, _conclusion):
@@ -101,19 +87,29 @@ def add_edge(_supporting_statement, _conclusion):
        q2 = "MATCH (s1:Statement {text: $_supporting_statement}) MATCH (s2:Statement {text: $_conclusion}) CREATE (s1)-[:supports]->(s2)"
        nodes = session.run(q2, _supporting_statement = _supporting_statement, _conclusion = _conclusion)
 
-#can I make some linked nodes?
+# Decompose an argument into successive arguments until the specified depth level is achieved
 
-test = make_argument()
+def decompose_argument(statement="", depth=2):
+    if depth == 0:
+        return
+    else:
+        seed = make_argument(statement) 
+        
 
-conclusion = test["conclusion"].get("statement")
-conclusion_node = create_supporting_statement(conclusion)
+        conclusion = seed["conclusion"].get("statement")
+        conclusion_node = create_supporting_statement(conclusion)
 
-for supporting_statement in test["supporting_statements"]:
-  
-  _supporting_statement = supporting_statement.get("statement")
-  create_supporting_statement(_supporting_statement)
-  add_edge(_supporting_statement, conclusion)
+        for supporting_statement in seed["supporting_statements"]:
+            _supporting_statement = supporting_statement.get("statement")
+            create_supporting_statement(_supporting_statement)
+            add_edge(_supporting_statement, conclusion)
+        
+        depth-=1
+        for supporting_statement in seed["supporting_statements"]:
+            decompose_argument(supporting_statement.get("statement"),depth)
 
+
+decompose_argument("humans are not solely responsible for climate change.", 3)
 driver.close()
 
 
