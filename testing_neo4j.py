@@ -109,10 +109,44 @@ def decompose_argument(statement="", depth=2):
             decompose_argument(supporting_statement.get("statement"),depth)
 
 
-decompose_argument("humans are not solely responsible for climate change.", 3)
+# decompose_argument("humans are not solely responsible for climate change.", 3)
+
+# create new edges between all nodes in graph with weights calculated by sorensen dice similarity between nodes - ref: https://neo4j.com/labs/apoc/4.3/overview/apoc.text/apoc.text.sorensenDiceSimilarity/
+
+def add_similarity_edges():
+    query = """
+    MATCH (n1), (n2)
+    WHERE id(n1) < id(n2)
+    WITH n1, n2, apoc.text.sorensenDiceSimilarity(n1.text, n2.text) AS similarity
+    WHERE similarity > 0
+    MERGE (n1)-[r:SIMILARITY]->(n2)
+    SET r.weight = similarity;
+    """
+
+    with driver.session() as session:
+        session.run(query)
+
+# IN PROGRESS - identify edges with sd similarity above a certain threshold
+
+def find_duplicates(threshold):
+    query = """
+    MATCH (a)-[r:SIMILARITY]->(b)
+    WHERE r.weight > $threshold
+    RETURN a, r, b;
+    """
+    with driver.session() as session:
+        nodes = session.run(query, threshold)
+    
+
+# TODO: threading implementation (shawty slow where depth > 3 lmao)
+
+#### TESTINGGGG
+
+decompose_argument("Ultraprocessed foods are responsible for obseity.", 3)
+
+# uncomment this if you want to add similarity edges
+# add_similarity_edges()
 driver.close()
-
-
 
 
 
