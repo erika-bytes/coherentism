@@ -82,8 +82,7 @@ def create_supporting_statement( _text):
         q1 = "MERGE (s:Statement {text: $_text}) RETURN s"
         nodes = session.run(q1, _text=_text)
         add_similarity_edges(target_node=_text)
-
-        # find_duplicates(0.5,nodes.data()[0].get("s").get("text"))
+        find_duplicates(0.5,_text)
 
 
 def add_edge(_supporting_statement, _conclusion):
@@ -167,7 +166,7 @@ def find_duplicates(threshold,target_node_text):
       
    
 print(decompose_argument(statement1, 2))
-print (find_duplicates(0.5,"Poor satiety can result in overeating."))
+#print (find_duplicates(0.5,"Reduced satiety can lead to overeating."))
         
   
 # TODO: threading implementation (shawty slow where depth > 3 lmao)
