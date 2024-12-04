@@ -85,6 +85,7 @@ def create_supporting_statement( _text):
         find_duplicates(0.5,_text)
 
 
+
 def add_edge(_supporting_statement, _conclusion):
    with driver.session() as session:
        q2 = "MATCH (s1:Statement {text: $_supporting_statement}) MATCH (s2:Statement {text: $_conclusion}) CREATE (s1)-[:supports]->(s2)"
@@ -157,15 +158,38 @@ def find_duplicates(threshold,target_node_text):
       nodes = session.run(query, threshold=threshold, target_node_text=target_node_text)
       candidates=[]
       for node in nodes:
-        if campare_meanings(node["target"]['text'],node["b"]['text'])["evaluation"]:
-                # print(node["target"]['text'])
-                # print(node["b"]['text'])
-                candidates.append(node["b"]['text'])
-        print(f"found {len(candidates)} candidates")
-        print (candidates)
+        text_1 = node["target"]['text']
+        text_2 = node["b"]['text']
+        if campare_meanings(text_1,text_2)["evaluation"]:
+                candidates.append(text_2)
+                query_merge = """
+
+                    MATCH (s1:Statement {text: $text_1}), (s2:Statement {text: $text_2})
+                    WITH s1, s2
+                    MATCH (s2)-[r:supports]->(other)
+                    MERGE (s1)-[r_new:supports]->(other) 
+                    SET r_new += properties(r)
+
+                    WITH s1, s2
+                    MATCH (other)-[r:supports]->(s2)
+                    MERGE (other)-[r_new:supports]->(s1)
+                    SET r_new += properties(r)
+
+                    DETACH DELETE s2
+                    RETURN s1;
+                
+                """
+                merge_nodes = session.run(query_merge, text_1 = text_1, text_2 = text_2)
+                print(text_1)
+                print("merged with")
+                print(text_2)
+                # print("merged nodes with statements: {text_1}, {text_2}")
+
+        # print(f"found {len(candidates)} candidates")
+        # print (candidates)
       
    
-print(decompose_argument(statement1, 2))
+print(decompose_argument(statement1, 3))
 #print (find_duplicates(0.5,"Reduced satiety can lead to overeating."))
         
   
@@ -178,7 +202,3 @@ print(decompose_argument(statement1, 2))
 # uncomment this if you want to add similarity edges
 # add_similarity_edges()
 driver.close()
-
-
-
-
