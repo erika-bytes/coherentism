@@ -11,15 +11,48 @@ import random
 import threading
 import os
 import neo4j
-import datetime
+#import datetime
 from copy import deepcopy
-#lock = threading.Lock()
+import time
+from datetime import timedelta, datetime
+from collections import deque
 
-Researchathon_api_key=''
+lock = threading.Lock()
+
+Researchathon_api_key='/'
 
 # Setup OpenAI stuff
 
 client = openai.OpenAI(api_key=Researchathon_api_key)
+
+class RateLimiter:
+  def __init__(self,requests_per_minute):
+    self.requests_per_minute=requests_per_minute
+    self.window=60
+    self.requests=deque()
+    self.lock=threading.Lock()
+    self.monitor_thread=threading.Thread(target=self.monitor)
+    self.monitor_thread.daemon=True
+    self.monitor_thread.start()
+  def monitor(self):
+    while True:
+      time.sleep(60)
+      with self.lock:
+        print(f"Number of requests in the last {self.window} seconds: {len(self.requests)}",flush=True,end=" ")
+  def aquire(self):
+     with self.lock:
+        now=datetime.now()
+        # remove requests that are older than the window
+        while self.requests and self.requests[0]< now-timedelta(seconds=self.window):
+          self.requests.popleft()
+        # if the number of requests in the current window is greater than the limit, sleep until the next window
+        if len(self.requests)>= self.requests_per_minute:
+           sleep_time= (self.requests[0]+timedelta(seconds=self.window)-now).total_seconds()
+           if sleep_time>0:
+              time.sleep(sleep_time)
+        self.requests.append(now)
+
+rate_limiter=RateLimiter(requests_per_minute=5000)
 
 def call_completions_structured(prompt,system_instructions="You are a helpful assistant.",model="gpt-4o-mini",pylance_structure=None,debug=False,temperature=1.0,eval_response=False):
   global client
@@ -27,7 +60,8 @@ def call_completions_structured(prompt,system_instructions="You are a helpful as
     print("No structure provided",end="",flush=True)
     return ''
   try:
-    start=datetime.datetime.now()
+    start=datetime.now()
+    rate_limiter.aquire()
     completion = client.beta.chat.completions.parse(
       model=model,
       messages=[
@@ -36,7 +70,7 @@ def call_completions_structured(prompt,system_instructions="You are a helpful as
     ],
       response_format=pylance_structure)
     if debug:
-      print(f"Time taken for completion: {datetime.datetime.now()-start}",flush=True)
+      print(f"Time taken for completion: {datetime.now()-start}",flush=True)
   except Exception as e:
     print(f"Error in call_completions_structured when calling the API" ,e)
     return 
@@ -59,6 +93,9 @@ class Argument_(pydantic.BaseModel):
     supporting_rules: List[SupportingRule]
     conclusion:Statement
 
+class Arguments_(pydantic.BaseModel):
+    Arguments: List[Argument_]
+
 def make_argument(statement="humans cause climate change"):
   Argument_maker_sys_inst= "Take this proposition and create a supporting argument for it where the proposition given is the conclusion. Statements are the premises of the argument, they must be reasonable atomic statements where the meaning is clear and the statement is not a compound sentence. Avoid creating statements that could be broken down into separate sentences, for example instead of creating a statement like ' x is caused by a,b,c' create separate statements 'x is caused is caused by a', 'x is caused by b' , 'x is caused by c' instead. Supporting rules connect supporting statements (premises) to the conclusion. Please provide you response according to the structure provided."
   response=call_completions_structured(system_instructions=Argument_maker_sys_inst,prompt=statement,pylance_structure=Argument_)
@@ -68,6 +105,7 @@ def make_argument(statement="humans cause climate change"):
     dict=response
   return dict 
 # print (make_argument("Ultraprocessed foods are responsible for obesity."))
+
 # Set up neo4j driver stuff
 
 uri = "bolt://localhost:7687"
@@ -83,9 +121,18 @@ def create_supporting_statement( _text):
         q1 = "MERGE (s:Statement {text: $_text}) RETURN s"
         nodes = session.run(q1, _text=_text)
         add_similarity_edges(target_node=_text)
-        find_duplicates(0.5,_text)
+        # find_duplicates(0.5,_text)
         # add_source(_text, session)
 
+# def add_unique(queue):
+#     for node in queue:
+#         create_supporting_statement(node)
+#         add_edge(node._supporting_statement, node.conclusion)
+
+# queue = []
+
+# def add_to_queue():
+#     queue.append()
 
 
 def add_edge(_supporting_statement, _conclusion):
@@ -142,7 +189,7 @@ def add_similarity_edges(target_node):
 
 # IN PROGRESS - identify edges with sd similarity above a certain threshold
 statement1="God exists."
-statement2="God does not exist."
+statement2="Quarter buttoned waffle shirts are cozy."
 def campare_meanings(node1, node2):
   class Statement(pydantic.BaseModel):
     evaluation: bool
@@ -176,14 +223,32 @@ def do_merge(node, session):
             RETURN s1;
         
         """
-        merge_nodes = session.run(query_merge, text_1 = text_1, text_2 = text_2)
+        with lock:
+            merge_nodes = session.run(query_merge, text_1 = text_1, text_2 = text_2)
         print(text_1, end=' ', flush=True)
         print("merged with", end=' ', flush=True)
         print(text_2, end=' ', flush=True)
     print(".", end=' ', flush=True)
     
 
+def find_all_duplicates():
+    """run find duplicates for every node in the database"""
 
+    # get all db nodes
+    query = """
+    MATCH (n)
+    RETURN DISTINCT n;
+    """
+    with driver.session() as session:
+        nodes = session.run(query)
+        # deduplicate each nodes
+        for node in nodes:
+            print(node["n"]["text"])
+            find_duplicates(0.5,node["n"]["text"])
+
+def refine_argument(statement, depth):
+    decompose_argument(statement, depth)
+    find_all_duplicates()
 
 
 def find_duplicates(threshold,target_node_text):    
@@ -248,23 +313,56 @@ def find_duplicates(threshold,target_node_text):
 #     """
 #     session.run(query, text = text, link = link)
     
+def hypothesize(nodes: list):
+    """ creates a possible parent statement for a given set of nodes """
+    Argument_maker_sys_inst= "Take this list of supporting statements and find a conclusion for which the group of statements provides sufficient justification. Please make sure that all of the supporting statements contribute to the justification of the conclusion you've created. Avoid creating a conclusion that could be broken down into separate sentences if possible. Supporting rules connect the supporting statements (premises) you've been given to the conclusion you've created. Please provide you response according to the structure provided."
+    response=call_completions_structured(system_instructions=Argument_maker_sys_inst,prompt=nodes,pylance_structure=Argument_)
+    if isinstance(response, str):
+        dict=json.loads(response)
+    else:
+        dict=response
+    #create new potential conclusion node
+    conclusion = response["conclusion"].get("statement")
+    conclusion_node = create_supporting_statement(conclusion)
+    #create edges from original statements to new node differentiated as may support
+    with driver.session() as session:
+        for supporting_statement in response["supporting_statements"]:
+            statement = supporting_statement["statement"]
+            q2 = "MATCH (s1:Statement {text: $supporting_statement}) MATCH (s2:Statement {text: $conclusion}) CREATE (s1)-[:maysupport]->(s2)"
+            nodes = session.run(q2, supporting_statement = statement, conclusion = conclusion)
 
-
-clean_db()
-start = datetime.datetime.now()
-decompose_argument(statement1, 2)
-print(datetime.datetime.now() - start)
-# decompose_argument(statement2, 2)
-# print(datetime.datetime.now() - start)
-#print (find_duplicates(0.5,"Reduced satiety can lead to overeating."))
-        
-  
-# TODO: threading implementation (shawty slow where depth > 3 lmao)
+def trace_path(node1: str, node2: str):
+    """traces the path from one statement to another, returns an ordered list of statements in the path"""
+    with driver.session() as session:
+        query = """
+            MATCH (start {text: $node1}), (end {text: $node2})
+            CALL apoc.path.expandConfig(start, {endNodes: [end], uniqueness: "NODE_GLOBAL", relationshipFilter: ">", bfs: true}) 
+            YIELD path
+            RETURN [node IN nodes(path) | node.text] AS texts
+        """
+        path = session.run(query, node1 = node1, node2 = node2)
+        print(path.single()["texts"])
 
 #### TESTINGGGG
+
+#clean_db()
+start = datetime.now()
+#decompose_argument(statement2, 3)
+#print(datetime.datetime.now() - start)
+refine_argument(statement2, 3)
+# testing_statement_list = [
+#  ,,,
+# ]
+# hypothesize(str(testing_statement_list))
+#find_all_duplicates()
+#trace_path(,)
+print(datetime.now() - start)
+#print (find_duplicates(0.5,))
+
 
 # decompose_argument("Ultraprocessed foods are responsible for obseity.", 3)
 
 # uncomment this if you want to add similarity edges
 # add_similarity_edges()
+   
 driver.close()
